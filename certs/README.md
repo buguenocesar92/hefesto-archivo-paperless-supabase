@@ -1,0 +1,1 @@
+Guardar ca.crt con la cadena CA confiable para el hostname PostgreSQL usado. La conexión directa permite descargarla desde Supabase. El pooler puede tener otra cadena: verificar certificado del endpoint y usar CA/bundle válido. Nunca desactivar verify-full para ocultar fallos. Para fuentes adicionales, montar sus CA separadas y configurar el certificado en cada conexión.

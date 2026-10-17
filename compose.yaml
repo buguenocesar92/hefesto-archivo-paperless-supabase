@@ -1,0 +1,96 @@
+name: ${COMPOSE_PROJECT_NAME:?Run scripts/configure.py}
+x-db-env: &db-env
+  PGHOST: ${POSTGRES_HOST:?Set Supabase host}
+  PGPORT: "5432"
+  PGDATABASE: postgres
+  PGUSER: ${POSTGRES_USERNAME:?Set role login}
+  PGPASSWORD: ${POSTGRES_PASSWORD:?Set role password}
+  PGSSLMODE: verify-full
+  PGSSLROOTCERT: /run/supabase/ca.crt
+services:
+  preflight:
+    image: postgres:17-alpine
+    restart: "no"
+    environment:
+      <<: *db-env
+      SUPABASE_DEDICATED_CONFIRMED: ${SUPABASE_DEDICATED_CONFIRMED:-false}
+      SUPABASE_DATA_API_DISABLED: ${SUPABASE_DATA_API_DISABLED:-false}
+    volumes: [./certs:/run/supabase:ro, ./ops:/opt/hefesto:ro]
+    entrypoint: [/bin/sh, /opt/hefesto/preflight.sh]
+  broker:
+    image: valkey/valkey:9-alpine
+    restart: unless-stopped
+    environment:
+      BROKER_PASSWORD: ${BROKER_PASSWORD:?Generate .env}
+    command: [sh, -c, 'exec valkey-server --requirepass "$$BROKER_PASSWORD" --appendonly no --save 60 1']
+    volumes: [broker:/data]
+    networks: [backend]
+    healthcheck:
+      test: [CMD-SHELL, 'VALKEYCLI_AUTH="$$BROKER_PASSWORD" valkey-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  app:
+    image: paperlessngx/paperless-ngx:3.3.1@sha256:cb91bfb468e63025a9d10c01b54c33665113668eee61b490db96de19b860b9c4
+    restart: unless-stopped
+    environment:
+      PAPERLESS_REDIS: redis://:${BROKER_PASSWORD:?Generate .env}@broker:6379
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBHOST: ${POSTGRES_HOST:?Set host}
+      PAPERLESS_DBPORT: "5432"
+      PAPERLESS_DBNAME: postgres
+      PAPERLESS_DBUSER: ${POSTGRES_USERNAME:?Set role login}
+      PAPERLESS_DBPASS: ${POSTGRES_PASSWORD:?Set password}
+      PAPERLESS_DB_OPTIONS: sslmode=verify-full,sslrootcert=/run/supabase/ca.crt,connect_timeout=15,pool.max_size=5
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?Generate .env}
+      PAPERLESS_URL: https://${ARCHIVE_HOST:?Set domain}
+      PAPERLESS_TIME_ZONE: America/Santiago
+      PAPERLESS_OCR_LANGUAGE: spa+eng
+      PAPERLESS_OCR_MODE: skip
+      PAPERLESS_TASK_WORKERS: "1"
+      PAPERLESS_THREADS_PER_WORKER: "2"
+      PAPERLESS_ACCOUNT_ALLOW_SIGNUPS: "false"
+      PAPERLESS_ADMIN_USER: hefesto_admin
+      PAPERLESS_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Generate .env}
+      PAPERLESS_ADMIN_MAIL: ${ADMIN_EMAIL:?Set admin email}
+      PAPERLESS_EMAIL_TASK_CRON: disable
+      PAPERLESS_TIKA_ENABLED: "false"
+    volumes:
+      - data:/usr/src/paperless/data
+      - media:/usr/src/paperless/media
+      - consume:/usr/src/paperless/consume
+      - export:/usr/src/paperless/export
+      - ./certs:/run/supabase:ro
+    expose: ["8000"]
+    networks: [default, backend]
+    depends_on:
+      preflight: {condition: service_completed_successfully}
+      broker: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, -fsSL, --max-time, "8", http://localhost:8000]
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 10
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+  dbtools:
+    image: postgres:17-alpine
+    profiles: [tools]
+    environment: *db-env
+    volumes: [./certs:/run/supabase:ro]
+volumes:
+  data:
+    name: ${VOLUME_PREFIX:?Generate .env}-data
+  media:
+    name: ${VOLUME_PREFIX:?Generate .env}-media
+  consume:
+    name: ${VOLUME_PREFIX:?Generate .env}-consume
+  export:
+    name: ${VOLUME_PREFIX:?Generate .env}-export
+  broker:
+    name: ${VOLUME_PREFIX:?Generate .env}-broker
+networks:
+  default:
+  backend:
