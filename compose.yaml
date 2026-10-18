@@ -1,11 +1,10 @@
-name: ${COMPOSE_PROJECT_NAME:?Run scripts/configure.py}
 x-db-env: &db-env
   PGHOST: ${POSTGRES_HOST:?Set Supabase host}
   PGPORT: "5432"
-  PGDATABASE: postgres
+  PGDATABASE: ${DB_NAME:-postgres}
   PGUSER: ${POSTGRES_USERNAME:?Set role login}
   PGPASSWORD: ${POSTGRES_PASSWORD:?Set role password}
-  PGSSLMODE: verify-full
+  PGSSLMODE: ${DB_SSLMODE:-verify-full}
   PGSSLROOTCERT: /run/supabase/ca.crt
 services:
   preflight:
@@ -38,10 +37,10 @@ services:
       PAPERLESS_DBENGINE: postgresql
       PAPERLESS_DBHOST: ${POSTGRES_HOST:?Set host}
       PAPERLESS_DBPORT: "5432"
-      PAPERLESS_DBNAME: postgres
+      PAPERLESS_DBNAME: ${DB_NAME:-postgres}
       PAPERLESS_DBUSER: ${POSTGRES_USERNAME:?Set role login}
       PAPERLESS_DBPASS: ${POSTGRES_PASSWORD:?Set password}
-      PAPERLESS_DB_OPTIONS: sslmode=verify-full,sslrootcert=/run/supabase/ca.crt,connect_timeout=15,pool.max_size=5
+      PAPERLESS_DB_OPTIONS: sslmode=${DB_SSLMODE:-verify-full},sslrootcert=/run/supabase/ca.crt,connect_timeout=15,pool.max_size=5
       PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?Generate .env}
       PAPERLESS_URL: https://${ARCHIVE_HOST:?Set domain}
       PAPERLESS_TIME_ZONE: America/Santiago
@@ -82,15 +81,15 @@ services:
     volumes: [./certs:/run/supabase:ro]
 volumes:
   data:
-    name: ${VOLUME_PREFIX:?Generate .env}-data
+    name: ${VOLUME_PREFIX:-hefesto-archivo}-data
   media:
-    name: ${VOLUME_PREFIX:?Generate .env}-media
+    name: ${VOLUME_PREFIX:-hefesto-archivo}-media
   consume:
-    name: ${VOLUME_PREFIX:?Generate .env}-consume
+    name: ${VOLUME_PREFIX:-hefesto-archivo}-consume
   export:
-    name: ${VOLUME_PREFIX:?Generate .env}-export
+    name: ${VOLUME_PREFIX:-hefesto-archivo}-export
   broker:
-    name: ${VOLUME_PREFIX:?Generate .env}-broker
+    name: ${VOLUME_PREFIX:-hefesto-archivo}-broker
 networks:
   default:
   backend:
