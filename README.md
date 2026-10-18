@@ -28,7 +28,7 @@ Conservar licencia GPL y avisos del proyecto. Hefesto vende servicio/implementac
 
 ## Despliegue en Coolify (MVP Hefesto)
 
-Coolify clona la rama `coolify` y usa `compose.yaml` directamente; `compose.bootstrap.yaml` es solo bootstrap local y no se monta en Coolify. El certificado es Compose con Traefik ya delante, así que el servicio `app` se conecta por la red interna de Docker y solo expone el puerto `8000` (sin `ports:`). El nombre del proyecto lo pone Coolify; este compose ya no fuerza `name:` ni el prefijo de los volúmenes sin un valor.
+Coolify clona la rama `coolify` y usa `compose.yaml` directamente; `compose.bootstrap.yaml` es solo bootstrap local y no se monta en Coolify. El build pack es Docker Compose con Traefik delante (TLS y dominio), así que el servicio `app` se conecta por la red interna de Docker y solo expone el puerto `8000` (sin `ports:`). El nombre del proyecto lo pone Coolify; este compose ya no fuerza `name:` ni el prefijo de los volúmenes sin un valor.
 
 Variables nuevas (con default que preserva el uso original):
 
@@ -39,5 +39,7 @@ Variables nuevas (con default que preserva el uso original):
 | `VOLUME_PREFIX`     | `hefesto-archivo`  | Prefijo de los nombres de volúmenes persistentes. Coolify debe asignar uno por app para que los volúmenes no se pisen entre despliegues.                                              |
 | `SUPABASE_DEDICATED_CONFIRMED` | `false` | Coolify debe ponerlo en `true` (la base dedicada la verifica `ops/preflight.sh`).                                                                                                |
 | `SUPABASE_DATA_API_DISABLED`   | `false` | Coolify debe ponerlo en `true` (Data API apagada; `ops/preflight.sh` aborta si no).                                                                                                |
+
+`POSTGRES_HOST` debe ser el host interno del Postgres compartido dentro de la red de Coolify (no `*.supabase.co`). Con `DB_SSLMODE=disable` no hace falta montar `certs/ca.crt` (la conexión viaja por la red interna de Docker sin TLS); con `verify-full` sí es obligatorio.
 
 Chequeos automáticos antes de cada deploy: `bash scripts/coolify-check.sh` confirma que `compose.yaml` respeta el contrato (sin `ports:`/`container_name`/binds fuera del repo, sin `name:` raíz, `DB_NAME` y `DB_SSLMODE` llegan al render).

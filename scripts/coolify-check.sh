@@ -113,9 +113,9 @@ fi
 # 5) Volúmenes con name: deben referenciar ${VOLUME_PREFIX} (parametrizable).
 viol="$(awk '/^volumes:/,/^networks:/' "${COMPOSE_FILE}" \
   | grep -E '^[[:space:]]+name:' \
-  | grep -vE '\$\{?VOLUME_PREFIX[?:}]' || true)"
+  | grep -vE '\$\{VOLUME_PREFIX:-[^}]+\}' || true)"
 if [[ -n "${viol}" ]]; then
-  echo "volúmenes con 'name:' fijo (deben usar \${VOLUME_PREFIX}):" >&2
+  echo "volúmenes con 'name:' fijo (deben usar \${VOLUME_PREFIX:-<default>}):" >&2
   echo "${viol}" >&2
   fail=1
 fi
@@ -129,17 +129,34 @@ if [[ -n "${net_viol}" ]]; then
   fail=1
 fi
 
-# 7) supabase-pg: DB_NAME=mvp_prueba y DB_SSLMODE=disable en el render.
-render_env="$(echo "${RENDER}" \
-  | jq -r '[.. | objects | select(has("environment")) | .environment | to_entries[] | "\(.key)=\(.value)"] | join("\n")')"
+# 7) supabase-pg: DB_NAME=mvp_prueba y DB_SSLMODE=disable en el servicio web 'app'.
+app_env="$(echo "${RENDER}" | jq -r '.services.app.environment // {} | to_entries[] | "\(.key)=\(.value)"')"
 
-if ! grep -qE '^(PGDATABASE|DB_NAME)=mvp_prueba$' <<< "${render_env}"; then
-  echo "supabase-pg: DB_NAME=mvp_prueba no aparece en el render" >&2
+if ! grep -qE '^PAPERLESS_DBNAME=mvp_prueba$' <<< "${app_env}"; then
+  echo "supabase-pg: PAPERLESS_DBNAME=mvp_prueba no aparece en services.app" >&2
   fail=1
 fi
-if ! grep -qE '(^PGSSLMODE=disable$|^DB_SSLMODE=disable$|sslmode=disable)' <<< "${render_env}"; then
-  echo "supabase-pg: DB_SSLMODE=disable no aparece en el render" >&2
+if ! grep -qE '^PAPERLESS_DB_OPTIONS=.*sslmode=disable' <<< "${app_env}"; then
+  echo "supabase-pg: PAPERLESS_DB_OPTIONS no incluye sslmode=disable en services.app" >&2
   fail=1
+fi
+
+# 8) ops/preflight.sh: cada ${VAR} usada debe estar en services.preflight.environment.
+preflight_env_keys="$(echo "${RENDER}" | jq -r '.services.preflight.environment // {} | keys[]')"
+preflight_script="${REPO_ROOT}/ops/preflight.sh"
+if [[ -f "${preflight_script}" ]]; then
+  missing=""
+  while IFS= read -r var; do
+    [[ -z "${var}" ]] && continue
+    if ! grep -qxF "${var}" <<< "${preflight_env_keys}"; then
+      missing+="${var} "
+    fi
+  done < <(grep -oE '\$\{[A-Z_][A-Z0-9_]*(:\?|:[?-][^}]*)?\}' "${preflight_script}" \
+    | sed -E 's/^\$\{([A-Z_][A-Z0-9_]*).*/\1/' | sort -u)
+  if [[ -n "${missing}" ]]; then
+    echo "preflight: variables usadas pero no inyectadas (services.preflight.environment): ${missing}" >&2
+    fail=1
+  fi
 fi
 
 if [[ "${fail}" -ne 0 ]]; then
