@@ -8,7 +8,7 @@ x-db-env: &db-env
   PGSSLROOTCERT: /run/supabase/ca.crt
 services:
   preflight:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     restart: "no"
     environment:
       <<: *db-env
@@ -17,7 +17,7 @@ services:
     volumes: [./certs:/run/supabase:ro, ./ops:/opt/hefesto:ro]
     entrypoint: [/bin/sh, /opt/hefesto/preflight.sh]
   broker:
-    image: valkey/valkey:9-alpine
+    image: valkey/valkey:9-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
     restart: unless-stopped
     environment:
       BROKER_PASSWORD: ${BROKER_PASSWORD:?Generate .env}
@@ -75,7 +75,7 @@ services:
       driver: json-file
       options: {max-size: 10m, max-file: "3"}
   dbtools:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     profiles: [tools]
     environment: *db-env
     volumes: [./certs:/run/supabase:ro]
